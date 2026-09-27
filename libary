@@ -1,0 +1,96 @@
+--[[
+    Nebula UI Library
+    Single-file Roblox/Luau UI library.
+
+    Load example:
+        local Library = loadstring(game:HttpGet("RAW_URL"))()
+
+    Notes:
+    - Pure client UI. No external dependencies.
+    - Parents to gethui() when available, otherwise PlayerGui.
+    - Supports icon/text tabs, dragging, resizing, mobile toggle button,
+      sections, labels, paragraphs, buttons, toggles, sliders, dropdowns,
+      multi-dropdowns, textboxes and keybinds.
+]]
+
+local Library = {}
+Library.__index = Library
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+local LocalPlayer = Players.LocalPlayer
+
+local DEFAULT_ACCENT = Color3.fromRGB(78, 115, 255)
+local BG = Color3.fromRGB(19, 21, 27)
+local BG2 = Color3.fromRGB(24, 27, 34)
+local BG3 = Color3.fromRGB(29, 32, 40)
+local STROKE = Color3.fromRGB(48, 53, 65)
+local TEXT = Color3.fromRGB(225, 228, 236)
+local MUTED = Color3.fromRGB(134, 141, 156)
+
+local function getGuiParent()
+    local ok, result = pcall(function()
+        if gethui then
+            return gethui()
+        end
+    end)
+    if ok and result then
+        return result
+    end
+
+    local pg = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if not pg and LocalPlayer then
+        pg = LocalPlayer:WaitForChild("PlayerGui")
+    end
+    return pg
+end
+
+local function New(className, props, children)
+    local obj = Instance.new(className)
+    if props then
+        for k, v in pairs(props) do
+            obj[k] = v
+        end
+    end
+    if children then
+        for _, child in ipairs(children) do
+            child.Parent = obj
+        end
+    end
+    return obj
+end
+
+local function Corner(parent, radius)
+    local c = New("UICorner", { CornerRadius = UDim.new(0, radius or 6) })
+    c.Parent = parent
+    return c
+end
+
+local function Stroke(parent, color, thickness, transparency)
+    local s = New("UIStroke", {
+        Color = color or STROKE,
+        Thickness = thickness or 1,
+        Transparency = transparency or 0,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    })
+    s.Parent = parent
+    return s
+end
+
+local function Padding(parent, l, r, t, b)
+    local p = New("UIPadding", {
+        PaddingLeft = UDim.new(0, l or 0),
+        PaddingRight = UDim.new(0, r or 0),
+        PaddingTop = UDim.new(0, t or 0),
+        PaddingBottom = UDim.new(0, b or 0),
+    })
+    p.Parent = parent
+    return p
+end
+
+local function Tween(obj, goal, t, style, direction)
+    local info = TweenInfo.new(
