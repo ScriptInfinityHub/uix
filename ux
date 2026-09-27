@@ -161,29 +161,6 @@ local function registerSectionTarget(section, gui, searchText)
     })
 end
 
-function Tab:ApplySearch(query)
-    query = string.lower(tostring(query or ""))
-
-    for _, section in ipairs(self.Sections) do
-        local anyVisible = false
-        local targets = section._searchTargets or {}
-
-        for _, item in ipairs(targets) do
-            local matches = (query == "") or string.find(item.Text, query, 1, true) ~= nil
-            if item.Gui then
-                item.Gui.Visible = matches
-            end
-            if matches then
-                anyVisible = true
-            end
-        end
-
-        if section.Frame then
-            section.Frame.Visible = anyVisible or query == ""
-        end
-    end
-end
-
 local function makeDraggable(handle, target)
     local dragging = false
     local dragStart
@@ -233,6 +210,29 @@ Tab.__index = Tab
 
 local Section = {}
 Section.__index = Section
+
+function Tab:ApplySearch(query)
+    query = string.lower(tostring(query or ""))
+
+    for _, section in ipairs(self.Sections) do
+        local anyVisible = false
+        local targets = section._searchTargets or {}
+
+        for _, item in ipairs(targets) do
+            local matches = (query == "") or string.find(item.Text, query, 1, true) ~= nil
+            if item.Gui then
+                item.Gui.Visible = matches
+            end
+            if matches then
+                anyVisible = true
+            end
+        end
+
+        if section.Frame then
+            section.Frame.Visible = anyVisible or query == ""
+        end
+    end
+end
 
 function Library:CreateWindow(config)
     config = config or {}
