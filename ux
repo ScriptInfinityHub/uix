@@ -1387,18 +1387,21 @@ function Window:Notify(config)
             Name = "Notifications",
             AnchorPoint = Vector2.new(1, 1),
             Position = UDim2.new(1, -18, 1, -18),
-            Size = UDim2.fromOffset(280, 300),
+            Size = UDim2.fromOffset(280, 400),
             BackgroundTransparency = 1,
+            BorderSizePixel = 0,
             ZIndex = 200,
         })
         holder.Parent = self.Gui
-        local layout = New("UIListLayout", {
+
+        local holderLayout = New("UIListLayout", {
             FillDirection = Enum.FillDirection.Vertical,
             VerticalAlignment = Enum.VerticalAlignment.Bottom,
             HorizontalAlignment = Enum.HorizontalAlignment.Right,
             Padding = UDim.new(0, 8),
+            SortOrder = Enum.SortOrder.LayoutOrder,
         })
-        layout.Parent = holder
+        holderLayout.Parent = holder
     end
 
     local note = New("Frame", {
@@ -1412,14 +1415,38 @@ function Window:Notify(config)
     note.Parent = holder
     Corner(note, 7)
     Stroke(note, STROKE, 1)
-    Padding(note, 12, 12, 10, 10)
 
-    local nlayout = New("UIListLayout", {
+    -- Accent is NOT inside the UIListLayout, so it cannot affect
+    -- the automatic height of the notification.
+    local accent = New("Frame", {
+        Name = "Accent",
+        Position = UDim2.fromOffset(0, 0),
+        Size = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = self.Accent,
+        BorderSizePixel = 0,
+        ZIndex = 204,
+    })
+    accent.Parent = note
+    self:_registerAccent(accent, "BackgroundColor3")
+
+    local content = New("Frame", {
+        Name = "Content",
+        Position = UDim2.fromOffset(3, 0),
+        Size = UDim2.new(1, -3, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 202,
+    })
+    content.Parent = note
+    Padding(content, 12, 12, 10, 10)
+
+    local contentLayout = New("UIListLayout", {
         FillDirection = Enum.FillDirection.Vertical,
         Padding = UDim.new(0, 4),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
-    nlayout.Parent = note
+    contentLayout.Parent = content
 
     local title = New("TextLabel", {
         Size = UDim2.new(1, 0, 0, 18),
@@ -1429,9 +1456,10 @@ function Window:Notify(config)
         TextSize = 11,
         TextColor3 = TEXT,
         TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 202,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 203,
     })
-    title.Parent = note
+    title.Parent = content
 
     local body = New("TextLabel", {
         Size = UDim2.new(1, 0, 0, 0),
@@ -1444,34 +1472,34 @@ function Window:Notify(config)
         TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Top,
-        ZIndex = 202,
-    })
-    body.Parent = note
-
-    local accent = New("Frame", {
-        Position = UDim2.fromOffset(-12, -10),
-        Size = UDim2.fromOffset(3, 999),
-        BackgroundColor3 = self.Accent,
-        BorderSizePixel = 0,
         ZIndex = 203,
     })
-    accent.Parent = note
-    self:_registerAccent(accent, "BackgroundColor3")
+    body.Parent = content
 
     note.BackgroundTransparency = 1
     title.TextTransparency = 1
     body.TextTransparency = 1
+    accent.BackgroundTransparency = 1
+
     Tween(note, {BackgroundTransparency = 0}, 0.18)
     Tween(title, {TextTransparency = 0}, 0.18)
     Tween(body, {TextTransparency = 0}, 0.18)
+    Tween(accent, {BackgroundTransparency = 0}, 0.18)
 
     task.delay(duration, function()
-        if not note.Parent then return end
+        if not note or not note.Parent then
+            return
+        end
+
         Tween(note, {BackgroundTransparency = 1}, 0.18)
         Tween(title, {TextTransparency = 1}, 0.18)
         Tween(body, {TextTransparency = 1}, 0.18)
+        Tween(accent, {BackgroundTransparency = 1}, 0.18)
+
         task.wait(0.2)
-        if note then note:Destroy() end
+        if note and note.Parent then
+            note:Destroy()
+        end
     end)
 end
 
