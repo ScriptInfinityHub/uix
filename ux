@@ -21,6 +21,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -152,6 +153,37 @@ local function bindCallbackObject(initialValue, callback)
     return obj
 end
 
+local function registerSectionTarget(section, gui, searchText)
+    section._searchTargets = section._searchTargets or {}
+    table.insert(section._searchTargets, {
+        Gui = gui,
+        Text = string.lower(tostring(searchText or "")),
+    })
+end
+
+function Tab:ApplySearch(query)
+    query = string.lower(tostring(query or ""))
+
+    for _, section in ipairs(self.Sections) do
+        local anyVisible = false
+        local targets = section._searchTargets or {}
+
+        for _, item in ipairs(targets) do
+            local matches = (query == "") or string.find(item.Text, query, 1, true) ~= nil
+            if item.Gui then
+                item.Gui.Visible = matches
+            end
+            if matches then
+                anyVisible = true
+            end
+        end
+
+        if section.Frame then
+            section.Frame.Visible = anyVisible or query == ""
+        end
+    end
+end
+
 local function makeDraggable(handle, target)
     local dragging = false
     local dragStart
@@ -216,8 +248,14 @@ function Library:CreateWindow(config)
     self._accentObjects = {}
     self._accentCallbacks = {}
     self._connections = {}
+    self.WindowTransparency = config.WindowTransparency or 0.14
+    self.TopbarTransparency = config.TopbarTransparency or 0.08
+    self.SectionTransparency = config.SectionTransparency or 0.12
+    self.ElementTransparency = config.ElementTransparency or 0.18
+    self.UseBlur = config.Blur ~= false
+    self.BlurSize = config.BlurSize or 10
 
-    local size = config.Size or UDim2.fromOffset(560, 420)
+    local size = config.Size or UDim2.fromOffset(360, 400)
 
     local gui = New("ScreenGui", {
         Name = "NebulaUI_" .. HttpService:GenerateGUID(false):gsub("-", ""),
@@ -234,6 +272,7 @@ function Library:CreateWindow(config)
         Position = UDim2.fromScale(0.5, 0.5),
         Size = size,
         BackgroundColor3 = BG,
+        BackgroundTransparency = self.WindowTransparency,
         BorderSizePixel = 0,
         ClipsDescendants = true,
     })
@@ -242,10 +281,20 @@ function Library:CreateWindow(config)
     Stroke(main, Color3.fromRGB(55, 60, 72), 1)
     self.Main = main
 
+    if self.UseBlur then
+        local blur = Instance.new("BlurEffect")
+        blur.Name = "NebulaBlur_" .. HttpService:GenerateGUID(false):gsub("-", "")
+        blur.Size = self.BlurSize
+        blur.Enabled = true
+        blur.Parent = Lighting
+        self.BlurEffect = blur
+    end
+
     local top = New("Frame", {
         Name = "Topbar",
         Size = UDim2.new(1, 0, 0, 52),
         BackgroundColor3 = BG2,
+        BackgroundTransparency = self.TopbarTransparency,
         BorderSizePixel = 0,
         ZIndex = 5,
     })
@@ -278,7 +327,7 @@ function Library:CreateWindow(config)
     local tabsBar = New("ScrollingFrame", {
         Name = "Tabs",
         Position = UDim2.fromOffset(14, 25),
-        Size = UDim2.new(1, -58, 0, 26),
+        Size = UDim2.new(1, -186, 0, 26),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ScrollBarThickness = 0,
@@ -298,6 +347,50 @@ function Library:CreateWindow(config)
     })
     tabsLayout.Parent = tabsBar
     self.TabsBar = tabsBar
+
+    local searchFrame = New("Frame", {
+        Name = "SearchFrame",
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -38, 0, 38),
+        Size = UDim2.fromOffset(118, 24),
+        BackgroundColor3 = BG3,
+        BackgroundTransparency = self.ElementTransparency,
+        BorderSizePixel = 0,
+        ZIndex = 7,
+    })
+    searchFrame.Parent = top
+    Corner(searchFrame, 6)
+    Stroke(searchFrame, STROKE, 1)
+
+    local searchIcon = New("TextLabel", {
+        Position = UDim2.fromOffset(8, 0),
+        Size = UDim2.fromOffset(14, 24),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamBold,
+        Text = "⌕",
+        TextSize = 12,
+        TextColor3 = MUTED,
+        ZIndex = 8,
+    })
+    searchIcon.Parent = searchFrame
+
+    local searchBox = New("TextBox", {
+        Name = "SearchBox",
+        Position = UDim2.fromOffset(24, 0),
+        Size = UDim2.new(1, -28, 1, 0),
+        BackgroundTransparency = 1,
+        ClearTextOnFocus = false,
+        Text = "",
+        PlaceholderText = "Search",
+        PlaceholderColor3 = MUTED,
+        Font = Enum.Font.Gotham,
+        TextSize = 10,
+        TextColor3 = TEXT,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 8,
+    })
+    searchBox.Parent = searchFrame
+    self.SearchBox = searchBox
 
     local close = New("TextButton", {
         Name = "Close",
@@ -395,6 +488,13 @@ function Library:CreateWindow(config)
     end)
     table.insert(self._connections, keyConn)
 
+    local searchConn = searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        if self.ActiveTab then
+            self.ActiveTab:ApplySearch(searchBox.Text)
+        end
+    end)
+    table.insert(self._connections, searchConn)
+
     if config.MobileButton ~= false and UserInputService.TouchEnabled then
         local mobile = New("TextButton", {
             Name = "MobileToggle",
@@ -460,6 +560,9 @@ end
 function Window:SetVisible(state)
     self.Visible = state == true
     self.Main.Visible = self.Visible
+    if self.BlurEffect then
+        self.BlurEffect.Enabled = self.Visible
+    end
 end
 
 function Window:Toggle()
@@ -472,6 +575,9 @@ function Window:Destroy()
     end
     if self.Gui then
         self.Gui:Destroy()
+    end
+    if self.BlurEffect then
+        self.BlurEffect:Destroy()
     end
 end
 
@@ -512,6 +618,10 @@ function Window:SelectTab(tabObject)
     else
         Tween(tabObject.Button, {TextColor3 = Color3.new(1,1,1)}, 0.14)
     end
+
+    if self.SearchBox then
+        tabObject:ApplySearch(self.SearchBox.Text)
+    end
 end
 
 function Window:AddTab(config)
@@ -521,6 +631,7 @@ function Window:AddTab(config)
     tab.Name = config.Name or config.name or "Tab"
     tab.Type = string.lower(config.Type or config.type or "text")
     tab.Sections = {}
+    tab.SearchTargets = {}
 
     local button
 
@@ -624,12 +735,14 @@ function Tab:AddSection(title)
         Size = UDim2.new(1, -2, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundColor3 = BG2,
+        BackgroundTransparency = self.Window.SectionTransparency,
         BorderSizePixel = 0,
     })
     frame.Parent = self.Page
     Corner(frame, 7)
     Stroke(frame, STROKE, 1)
     section.Frame = frame
+    section._searchTargets = {}
 
     local inner = New("Frame", {
         Name = "Inner",
@@ -707,6 +820,7 @@ function Section:AddLabel(config)
         TextXAlignment = Enum.TextXAlignment.Left,
     })
     label.Parent = self.Inner
+    registerSectionTarget(self, label, config.Text or config.Name or "Label")
 
     local obj = {}
     function obj:Set(text)
@@ -759,6 +873,7 @@ function Section:AddParagraph(config)
     body:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
         holder.Size = UDim2.new(1, 0, 0, extra + body.AbsoluteSize.Y)
     end)
+    registerSectionTarget(self, holder, tostring(config.Title or "") .. " " .. tostring(config.Text or ""))
 
     local obj = {}
     function obj:Set(text)
@@ -777,6 +892,7 @@ function Section:AddButton(config)
     local btn = New("TextButton", {
         Size = UDim2.new(1, 0, 0, 30),
         BackgroundColor3 = BG3,
+        BackgroundTransparency = self.Window.ElementTransparency,
         BorderSizePixel = 0,
         Text = config.Name or "Button",
         Font = Enum.Font.GothamSemibold,
@@ -785,6 +901,7 @@ function Section:AddButton(config)
         AutoButtonColor = false,
     })
     btn.Parent = self.Inner
+    registerSectionTarget(self, btn, config.Name or "Button")
     Corner(btn, 5)
     Stroke(btn, STROKE, 1)
 
@@ -821,6 +938,7 @@ end
 function Section:AddToggle(config)
     config = config or {}
     local row = makeRow(self, 26)
+    registerSectionTarget(self, row, config.Name or "Toggle")
     makeControlLabel(row, config.Name or "Toggle", 26)
 
     local box = New("TextButton", {
@@ -828,6 +946,7 @@ function Section:AddToggle(config)
         Position = UDim2.new(1, 0, 0.5, 0),
         Size = UDim2.fromOffset(18, 18),
         BackgroundColor3 = Color3.fromRGB(29, 32, 40),
+        BackgroundTransparency = self.Window.ElementTransparency,
         BorderSizePixel = 0,
         Text = "",
         AutoButtonColor = false,
@@ -904,6 +1023,7 @@ function Section:AddSlider(config)
         BackgroundTransparency = 1,
     })
     holder.Parent = self.Inner
+    registerSectionTarget(self, holder, config.Name or "Slider")
 
     local name = New("TextLabel", {
         Size = UDim2.new(1, -50, 0, 18),
@@ -1022,10 +1142,12 @@ local function buildDropdown(section, config, multi)
         ClipsDescendants = true,
     })
     holder.Parent = section.Inner
+    registerSectionTarget(section, holder, config.Name or (multi and "Multi Dropdown" or "Dropdown"))
 
     local button = New("TextButton", {
         Size = UDim2.new(1, 0, 0, 30),
         BackgroundColor3 = BG3,
+        BackgroundTransparency = section.Window.ElementTransparency,
         BorderSizePixel = 0,
         Text = "",
         AutoButtonColor = false,
@@ -1076,6 +1198,7 @@ local function buildDropdown(section, config, multi)
         Position = UDim2.fromOffset(0, 35),
         Size = UDim2.new(1, 0, 0, 0),
         BackgroundColor3 = Color3.fromRGB(25, 28, 35),
+        BackgroundTransparency = section.Window.ElementTransparency,
         BorderSizePixel = 0,
         Visible = false,
     })
@@ -1261,10 +1384,12 @@ end
 function Section:AddTextbox(config)
     config = config or {}
     local row = makeRow(self, 32)
+    registerSectionTarget(self, row, config.Name or config.Placeholder or "Textbox")
 
     local box = New("TextBox", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = BG3,
+        BackgroundTransparency = self.Window.ElementTransparency,
         BorderSizePixel = 0,
         ClearTextOnFocus = false,
         Text = config.Default or "",
